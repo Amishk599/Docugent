@@ -6,6 +6,7 @@ import argparse
 from dotenv import load_dotenv
 load_dotenv()
 
+from services.pdf_manager import PDFManger
 from services.ollama_custom import ChatLocalOllamaMistral
 from langchain.schema import HumanMessage
 from utils.helpers import handle_chat_mode
@@ -26,7 +27,11 @@ def main():
         sys.exit(1)
     
     model_name = os.getenv('OLLAMA_MODEL_NAME')
+    document_directory = os.getenv('DOCUMENTS_PATH')
+
     llm = ChatLocalOllamaMistral(model_name=model_name)
+    pdf_manager = PDFManger(docs_dir=document_directory)
+    
     if args.command == 'chat':
         handle_chat_mode(args, llm)
 
