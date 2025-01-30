@@ -7,6 +7,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from services.pdf_manager import PDFManger
+from services.pdf_processor import PDFProcessor
+from services.chroma_db import ChromaDbService
 from services.ollama_custom import ChatLocalOllamaMistral
 from langchain.schema import HumanMessage
 from utils.helpers import handle_chat_mode
@@ -26,11 +28,30 @@ def main():
         parser.print_help()
         sys.exit(1)
     
-    model_name = os.getenv('OLLAMA_MODEL_NAME')
-    document_directory = os.getenv('DOCUMENTS_PATH')
+    llm = ChatLocalOllamaMistral()
+    pdf_manager = PDFManger()
+    pdf_processor = PDFProcessor()
+    vector_store = ChromaDbService()
 
-    llm = ChatLocalOllamaMistral(model_name=model_name)
-    pdf_manager = PDFManger(docs_dir=document_directory)
+    # count of PDF documents present.
+    docs = pdf_manager.list_all_docs()
+    # ensure vector store is empty
+    vecs = vector_store.get_vectors_count()
+    print(f"PDFs Count[{len(docs)}]\n")
+
+    for doc in docs:
+        # read PDF content from all pages
+        text = pdf_manager.read_pdf(doc)
+        print(f"PDF Content:\n{text}\n\n")
+        # split the PDF text and form langchain documents and give each an id
+        documents = pdf_processor.chunk_text(texts=[text], metadatas=[{"filename": doc}])
+        print(f"After chunking:\n{documents}\n\n")
+        document_ids = pdf_processor.generate_ids_for_documents(documents)
+        # convert documents to embeddings add add to vector store
+        vector_store.add_document(documents=documents, ids=document_ids)
+
+    vecs = vector_store.get_vectors_count()
+    print(f"Vectors[{vecs}]\n\n")
     
     if args.command == 'chat':
         handle_chat_mode(args, llm)

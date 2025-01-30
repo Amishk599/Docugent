@@ -1,7 +1,7 @@
 import os
 from PyPDF2 import PdfReader
 class PDFManger:
-    def __init__(self, docs_dir):
+    def __init__(self, docs_dir: str = "documents/"):
         self.docs_dir = docs_dir
 
     def list_all_docs(self):
