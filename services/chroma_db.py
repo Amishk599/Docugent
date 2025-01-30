@@ -3,6 +3,7 @@ from typing import List
 from langchain.schema import Document
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_core.vectorstores import VectorStoreRetriever
 
 class ChromaDbService:
     def __init__(self):
@@ -26,4 +27,14 @@ class ChromaDbService:
         """
         Returns the number of vectores present in ChromaDb
         """
+        self.client.as_retriever
         return len(self.client.get()['ids'])
+    
+    def get_retriever(self, search_type: str = "mmr", k: int = 4) -> VectorStoreRetriever:
+        """
+        Return VectorStoreRetriever object
+        """
+        return self.client.as_retriever(
+            search_type=search_type, 
+            search_kwargs={"k": k},
+        )

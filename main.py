@@ -28,7 +28,7 @@ def main():
         parser.print_help()
         sys.exit(1)
     
-    llm = ChatLocalOllamaMistral()
+    model = ChatLocalOllamaMistral()
     pdf_manager = PDFManger()
     pdf_processor = PDFProcessor()
     vector_store = ChromaDbService()
@@ -54,7 +54,8 @@ def main():
     print(f"Vectors[{vecs}]\n\n")
     
     if args.command == 'chat':
-        handle_chat_mode(args, llm)
+        chroma_retriever = vector_store.get_retriever(k=2)
+        handle_chat_mode(model=model, retriever=chroma_retriever)
 
 if __name__ == "__main__":
     main()
