@@ -22,6 +22,8 @@ def main():
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
     # Subparser for chat mode
     chat_parser = subparsers.add_parser('chat', help='Enter chat mode')
+    # Subparser for preparing the rag agent
+    chat_parser = subparsers.add_parser('prepare', help='Inspect the contextual knowledge')
 
     # parse arguments
     args = parser.parse_args()
@@ -29,13 +31,13 @@ def main():
         parser.print_help()
         sys.exit(1)
     
-    model = ChatLocalOllamaMistral()
     pm = PDFManger()
     pp = PDFProcessor()
     vs = ChromaDbService()
-
-    process_pdf_documents(pdf_manager=pm, pdf_processor=pp, vector_store=vs)
+    model = ChatLocalOllamaMistral()
     
+    if args.command == 'prepare':
+        process_pdf_documents(pdf_manager=pm, pdf_processor=pp, vector_store=vs)
     if args.command == 'chat':
         handle_chat_mode(model=model, retriever=vs.get_retriever(k=2))
 
