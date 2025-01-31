@@ -1,4 +1,3 @@
-from uuid import uuid4
 from typing import List
 from langchain.schema import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -21,6 +20,15 @@ class PDFProcessor:
     
     def generate_ids_for_documents(self, documents: List[Document]) -> List[str]:
         """
-        Returns list a list of uuids (str) corresponding to each passed lanchain document
+        Returns list a list of id (str) corresponding to each passed lanchain document
         """
-        return [str(uuid4()) for _ in range(len(documents))]
+        from utils.helpers import generate_unique_id # to avoid circular imports
+        document_ids = []
+        for i, doc in enumerate(documents, start=1):
+            filename = doc.metadata.get('filename', 'unknown')
+            # unique key for each document chunk
+            hash_key = f"{filename}-doc-{i}"
+            doc_id = generate_unique_id(hash_key)
+            document_ids.append(doc_id)
+
+        return document_ids

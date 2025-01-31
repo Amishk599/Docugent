@@ -1,3 +1,7 @@
+import hashlib
+from services.pdf_manager import PDFManger
+from services.pdf_processor import PDFProcessor
+from services.chroma_db import ChromaDbService
 from langchain.schema import HumanMessage
 from langchain.prompts import PromptTemplate
 
@@ -51,6 +55,39 @@ def rag_pipeline(model, retriever, question):
     response = chain.invoke({"context":context, "question":question})
 
     return response
+
+def process_pdf_documents(
+        pdf_manager: PDFManger, 
+        pdf_processor: PDFProcessor, 
+        vector_store: ChromaDbService
+    ):
+    print("Starting to process all PDF documents...")
+    docs = pdf_manager.list_all_docs()
+    vecs_count_at_start = vector_store.get_vectors_count()
+
+    for doc in docs:
+        hash_key = f"{doc}-doc-1"
+        doc_id = generate_unique_id(hash_key)
+        if vector_store.document_exists(doc_id=doc_id):
+            print(f"Skipping {doc}, vectors already exist in store for this file")
+            continue
+        # read PDF content from all pages
+        text = pdf_manager.read_pdf(doc)
+        # split the PDF text and form langchain documents and give each an id
+        documents = pdf_processor.chunk_text(texts=[text], metadatas=[{"filename": doc}])
+        document_ids = pdf_processor.generate_ids_for_documents(documents)
+        # convert documents to embeddings add add to vector store
+        vector_store.add_document(documents=documents, ids=document_ids)
+        print(f"Processed {doc}, vectors created and added to store")
+
+    vecs_count_at_end = vector_store.get_vectors_count()
+    print(f"\nFound {len(docs)} PDFs\nvectors at start: {vecs_count_at_start}\nvectors at end: {vecs_count_at_end}")
+
+def generate_unique_id(hash_key: str):
+    """
+    generates a unique id based a hash key
+    """
+    return hashlib.md5(hash_key.encode()).hexdigest()
 
 def get_prompt_template():
     """

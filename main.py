@@ -11,7 +11,7 @@ from services.pdf_processor import PDFProcessor
 from services.chroma_db import ChromaDbService
 from services.ollama_custom import ChatLocalOllamaMistral
 from langchain.schema import HumanMessage
-from utils.helpers import handle_chat_mode
+from utils.helpers import handle_chat_mode, process_pdf_documents
 
 
 def main():
@@ -22,6 +22,7 @@ def main():
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
     # Subparser for chat mode
     chat_parser = subparsers.add_parser('chat', help='Enter chat mode')
+
     # parse arguments
     args = parser.parse_args()
     if not args.command:
@@ -29,33 +30,14 @@ def main():
         sys.exit(1)
     
     model = ChatLocalOllamaMistral()
-    pdf_manager = PDFManger()
-    pdf_processor = PDFProcessor()
-    vector_store = ChromaDbService()
+    pm = PDFManger()
+    pp = PDFProcessor()
+    vs = ChromaDbService()
 
-    # count of PDF documents present.
-    docs = pdf_manager.list_all_docs()
-    # ensure vector store is empty
-    vecs = vector_store.get_vectors_count()
-    print(f"PDFs Count[{len(docs)}]\n")
-
-    for doc in docs:
-        # read PDF content from all pages
-        text = pdf_manager.read_pdf(doc)
-        print(f"PDF Content:\n{text}\n\n")
-        # split the PDF text and form langchain documents and give each an id
-        documents = pdf_processor.chunk_text(texts=[text], metadatas=[{"filename": doc}])
-        print(f"After chunking:\n{documents}\n\n")
-        document_ids = pdf_processor.generate_ids_for_documents(documents)
-        # convert documents to embeddings add add to vector store
-        vector_store.add_document(documents=documents, ids=document_ids)
-
-    vecs = vector_store.get_vectors_count()
-    print(f"Vectors[{vecs}]\n\n")
+    process_pdf_documents(pdf_manager=pm, pdf_processor=pp, vector_store=vs)
     
     if args.command == 'chat':
-        chroma_retriever = vector_store.get_retriever(k=2)
-        handle_chat_mode(model=model, retriever=chroma_retriever)
+        handle_chat_mode(model=model, retriever=vs.get_retriever(k=2))
 
 if __name__ == "__main__":
     main()
