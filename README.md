@@ -18,3 +18,19 @@ pip install -r requirements.txt
 ```
 python3 -m main chat
 ```
+
+
+## Interactions
+```
+# prepare all newly added PDFs
+python3 -m main prepare 
+
+# enter chat mode
+python3 -m main chat
+
+# enter chat mode with streaming response
+python3 -m main chat --stream
+
+# enter chat mode with non-streaming response
+python3 -m main chat
+```

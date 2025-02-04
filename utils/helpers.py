@@ -5,7 +5,7 @@ from services.chroma_db import ChromaDbService
 from langchain.schema import HumanMessage
 from langchain.prompts import PromptTemplate
 
-def handle_chat_mode(model, retriever):
+def handle_chat_mode(model, retriever, stream=False):
     """
     Handle interactive chat mode
     """
@@ -20,18 +20,21 @@ def handle_chat_mode(model, retriever):
                 continue
             
             if model and retriever:
-                # response = model.invoke([HumanMessage(content=question)])
-                # trigger the rag pipeline and generate response
-                response = rag_pipeline(
-                    model=model, 
-                    retriever=retriever, 
-                    question=question,
-                )
-                print(f"DocugentAi: {response.content}\n")
+                print("DocugentAi: ", end="", flush=True)
+                # print the response (streaming or non-streaming)
+                if stream:
+                    for chunk in rag_pipeline(model, retriever, question, stream=True):
+                        print(chunk.content, end="", flush=True)
+                    
+                else:
+                    response = rag_pipeline(model, retriever, question)
+                    print(response.content, end="", flush=True)
+                
+                print("\n")  
     except (KeyboardInterrupt, EOFError):
         print("\nExiting chat mode")
 
-def rag_pipeline(model, retriever, question):
+def rag_pipeline(model, retriever, question, stream=False):
     """
     Main pipeline where based on question, relevant documents are 
     retrived and model uses it for context to answer the question.
@@ -51,10 +54,10 @@ def rag_pipeline(model, retriever, question):
     # define chain to process the response
     chain = prompt | model
 
-    # generate the response using the chain
-    response = chain.invoke({"context":context, "question":question})
-
-    return response
+    if stream:
+        return chain.stream({"context":context, "question":question})
+    else:
+        return chain.invoke({"context":context, "question":question})
 
 def process_pdf_documents(
         pdf_manager: PDFManger, 

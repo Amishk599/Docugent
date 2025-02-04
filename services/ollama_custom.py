@@ -1,15 +1,18 @@
 import os
+import json
 import requests
-from typing import List, Optional, ClassVar
+from typing import List, Optional, ClassVar, Generator, Iterator
 from pydantic import BaseModel, Field
 from langchain.chat_models.base import BaseChatModel
-from langchain_core.messages import BaseMessage
-from langchain_core.outputs import ChatGeneration
+from langchain_core.messages import BaseMessage, AIMessageChunk
+from langchain_core.outputs import ChatGeneration, ChatGenerationChunk
 from langchain.schema import (
     ChatMessage,
     AIMessage,
-    ChatResult
+    ChatResult,
 )
+from langchain_core.messages.utils import message_chunk_to_message
+from langchain_core.language_models.chat_models import generate_from_stream
 
 # implement a custom chat model
 class ChatLocalOllamaMistral(BaseChatModel):
@@ -23,19 +26,36 @@ class ChatLocalOllamaMistral(BaseChatModel):
     def _llm_type(self) -> str:
         return "local-ollama-mistral"
     
-    def _generate(self, messages: List[BaseMessage], stop: Optional[List[str]] = None,) -> ChatResult:
+    def _stream(
+        self,
+        messages: List[BaseMessage],
+        stop: Optional[List[str]] = None,
+    ) -> Iterator[ChatGenerationChunk]:
+        """
+        Stream the output of the model.
+        """
+        formatted_messages = self._format_messages(messages)
+        stream_generator = self._send_request(formatted_messages, stream=True)
+        for chunk in stream_generator:
+            yield ChatGenerationChunk(
+                message=AIMessageChunk(content=chunk),
+            )
+
+    def _generate(
+            self, 
+            messages: List[BaseMessage], 
+            stop: Optional[List[str]] = None,
+        ) -> ChatResult:
         """
         Process a list of message and generate a response
         """
         formatted_messages = self._format_messages(messages)
-        response = self._send_request(formatted_messages)
+        response_generator = self._send_request(formatted_messages, stream=False)
+        response_text = next(response_generator)
 
         # form ai message for the received response
         ai_message = AIMessage(
-            content=response.get("response", ""),
-            additional_kwargs={
-                "model_name": response.get("model", ""),
-            }
+            content=response_text,
         )
 
         # return as ChatResult
@@ -43,7 +63,7 @@ class ChatLocalOllamaMistral(BaseChatModel):
             generations=[ChatGeneration(message=ai_message)]
         )
     
-    def _send_request(self, prompt: str) -> str:
+    def _send_request(self, prompt: str, stream: bool = False) -> Generator[str, None, None]:
         """
         Sends a request to the local Ollama Mistral API
         """
@@ -53,17 +73,37 @@ class ChatLocalOllamaMistral(BaseChatModel):
         payload = {
             "model": self.model_name,
             "prompt": prompt,
-            "stream": False,
+            "stream": stream,
         }
-        # TODO : Add retries
+
         try:
             response = requests.post(
                 f"{self.host}/api/generate",
                 json=payload,
+                stream=stream,
             )
-            # print(f"response from API: {response.text}")
             response.raise_for_status()
-            return response.json()
+            if stream:
+                for line in response.iter_lines():
+                    if line:
+                        try:
+                            # parse the json response and extract the response text
+                            data = json.loads(line.decode('utf-8'))
+                            chunk = data.get("response", "")
+                            # ignore empty chunk
+                            if chunk:
+                                yield chunk
+                        except json.JSONDecodeError as e:
+                            print(f"JSON decoding error: {e}")
+            else:
+                try:
+                    json_data = response.json()
+                    result = json_data.get("response", "")
+                    yield result
+                except json.JSONDecodeError as e:
+                    print(f"JSON decoding error (non-stream): {e}")
+                    raise RuntimeError("Failed to parse JSON response from server.")
+            
         except requests.RequestException as e:
             print(f"Request failed with error: {e}")
             raise RuntimeError("Failed to generate response")
@@ -79,3 +119,4 @@ class ChatLocalOllamaMistral(BaseChatModel):
             else:
                 formatted_messages += f"User: {message.content}\n"
         return formatted_messages.strip()
+    
